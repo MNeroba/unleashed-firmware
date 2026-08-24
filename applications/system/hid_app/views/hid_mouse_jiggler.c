@@ -14,6 +14,7 @@ struct HidMouseJiggler {
 
 typedef struct {
     bool connected;
+    bool wireless;
     bool running;
     int interval_idx;
     uint8_t counter;
@@ -31,13 +32,13 @@ static void hid_mouse_jiggler_draw_callback(Canvas* canvas, void* context) {
     HidMouseJigglerModel* model = context;
 
     // Header
-#ifdef HID_TRANSPORT_BLE
-    if(model->connected) {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
-    } else {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+    if(model->wireless) {
+        if(model->connected) {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
+        } else {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+        }
     }
-#endif
 
     canvas_set_font(canvas, FontPrimary);
     elements_multiline_text_aligned(canvas, 27, 2, AlignLeft, AlignTop, "Mouse Jiggler");
@@ -53,15 +54,11 @@ static void hid_mouse_jiggler_draw_callback(Canvas* canvas, void* context) {
     furi_string_free(interval_str);
 
     canvas_set_font(canvas, FontPrimary);
-#ifdef HID_TRANSPORT_BLE
-    if(model->running && !model->connected) {
+    if(model->wireless && model->running && !model->connected) {
         elements_multiline_text(canvas, AlignLeft, 40, "Waiting for\nBluetooth");
     } else {
         elements_multiline_text(canvas, AlignLeft, 40, "Press Start\nto jiggle");
     }
-#else
-    elements_multiline_text(canvas, AlignLeft, 40, "Press Start\nto jiggle");
-#endif
     canvas_set_font(canvas, FontSecondary);
 
     // Ok
@@ -97,9 +94,7 @@ static void hid_mouse_jiggler_timer_callback(void* context) {
         {
             if(model->running) {
                 running = true;
-#ifdef HID_TRANSPORT_BLE
-                connected = model->connected;
-#endif
+                connected = !model->wireless || model->connected;
                 model->counter++;
                 counter = model->counter;
                 timer_period = hid_mouse_jiggler_interval_to_ticks(intervals[model->interval_idx]);
@@ -128,6 +123,13 @@ static void hid_mouse_jiggler_exit_callback(void* context) {
 static bool hid_mouse_jiggler_input_callback(InputEvent* event, void* context) {
     furi_assert(context);
     HidMouseJiggler* hid_mouse_jiggler = context;
+
+    if(event->type == InputTypeLong && event->key == InputKeyBack &&
+       hid_mouse_jiggler->hid->transport == HidTransportWireless) {
+        view_dispatcher_send_custom_event(
+            hid_mouse_jiggler->hid->view_dispatcher, HidCustomEventUnpair);
+        return true;
+    }
 
     bool consumed = false;
     bool timer_start = false;
@@ -194,6 +196,7 @@ HidMouseJiggler* hid_mouse_jiggler_alloc(Hid* hid) {
         HidMouseJigglerModel * model,
         {
             model->connected = false;
+            model->wireless = false;
             model->running = false;
             model->counter = 0;
         },
@@ -218,11 +221,17 @@ View* hid_mouse_jiggler_get_view(HidMouseJiggler* hid_mouse_jiggler) {
     return hid_mouse_jiggler->view;
 }
 
-void hid_mouse_jiggler_set_connected_status(HidMouseJiggler* hid_mouse_jiggler, bool connected) {
+void hid_mouse_jiggler_set_connected_status(
+    HidMouseJiggler* hid_mouse_jiggler,
+    bool connected,
+    bool wireless) {
     furi_assert(hid_mouse_jiggler);
     with_view_model(
         hid_mouse_jiggler->view,
         HidMouseJigglerModel * model,
-        { model->connected = connected; },
+        {
+            model->connected = connected;
+            model->wireless = wireless;
+        },
         true);
 }

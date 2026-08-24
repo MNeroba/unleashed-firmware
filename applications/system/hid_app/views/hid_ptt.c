@@ -68,6 +68,7 @@ typedef struct {
     bool ptt_pressed;
     bool mic_pressed;
     bool connected;
+    bool wireless;
     FuriString* os;
     FuriString* app;
     size_t osIndex;
@@ -918,11 +919,7 @@ static void hid_ptt_draw_callback(Canvas* canvas, void* context) {
 
     // Header
     canvas_set_font(canvas, FontPrimary);
-#ifdef HID_TRANSPORT_BLE
-    hid_ptt_draw_status_bar(canvas, true, model->connected);
-#else
-    hid_ptt_draw_status_bar(canvas, false, false);
-#endif
+    hid_ptt_draw_status_bar(canvas, model->wireless, model->connected);
 
     // OS and App labels
     canvas_set_font(canvas, FontSecondary);
@@ -1421,7 +1418,7 @@ void hid_ptt_free(HidPushToTalk* hid_ptt) {
     free(hid_ptt);
 }
 
-void hid_ptt_set_connected_status(HidPushToTalk* hid_ptt, bool connected) {
+void hid_ptt_set_connected_status(HidPushToTalk* hid_ptt, bool connected, bool wireless) {
     furi_assert(hid_ptt);
     with_view_model(
         hid_ptt->view,
@@ -1431,6 +1428,7 @@ void hid_ptt_set_connected_status(HidPushToTalk* hid_ptt, bool connected) {
                 notification_message(hid_ptt->hid->notifications, &sequence_single_vibro);
             }
             model->connected = connected;
+            model->wireless = wireless;
         },
         true);
 }

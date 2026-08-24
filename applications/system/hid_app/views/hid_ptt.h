@@ -11,7 +11,7 @@ void hid_ptt_free(HidPushToTalk* hid_ptt);
 
 View* hid_ptt_get_view(HidPushToTalk* hid_ptt);
 
-void hid_ptt_set_connected_status(HidPushToTalk* hid_ptt, bool connected);
+void hid_ptt_set_connected_status(HidPushToTalk* hid_ptt, bool connected, bool wireless);
 
 enum HidPushToTalkOSes {
     HidPushToTalkMacOS,

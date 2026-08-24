@@ -58,6 +58,7 @@ bool hid_scene_unpair_on_event(void* context, SceneManagerEvent event) {
 void hid_scene_unpair_on_exit(void* context) {
     Hid* app = context;
 
+    app->transport_restore_deferred = false;
     dialog_ex_reset(app->dialog);
     popup_reset(app->popup);
 }

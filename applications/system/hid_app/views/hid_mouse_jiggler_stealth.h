@@ -13,4 +13,5 @@ View* hid_mouse_jiggler_stealth_get_view(HidMouseJigglerStealth* hid_mouse_jiggl
 
 void hid_mouse_jiggler_stealth_set_connected_status(
     HidMouseJigglerStealth* hid_mouse_jiggler,
-    bool connected);
+    bool connected,
+    bool wireless);

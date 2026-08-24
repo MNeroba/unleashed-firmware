@@ -11,6 +11,7 @@
 #define HID_BT_CFG_PATH      APP_DATA_PATH(".bt_hid.cfg")
 #define HID_BT_CFG_FILE_TYPE "Flipper BT Remote Settings File"
 #define HID_BT_CFG_VERSION   1
+#define HID_BT_DEFAULT_NAME  "Wireless Mouse"
 
 bool hid_custom_event_callback(void* context, uint32_t event) {
     furi_assert(context);
@@ -41,10 +42,11 @@ void bt_hid_remove_pairing(Hid* app) {
 static void bt_hid_load_cfg(Hid* app) {
     Storage* storage = furi_record_open(RECORD_STORAGE);
     FlipperFormat* fff = flipper_format_file_alloc(storage);
-    bool loaded = false;
 
     FuriString* temp_str = furi_string_alloc();
     uint32_t temp_uint = 0;
+
+    strlcpy(app->ble_hid_cfg.name, HID_BT_DEFAULT_NAME, sizeof(app->ble_hid_cfg.name));
 
     do {
         if(!flipper_format_file_open_existing(fff, HID_BT_CFG_PATH)) break;
@@ -63,17 +65,12 @@ static void bt_hid_load_cfg(Hid* app) {
             flipper_format_rewind(fff);
         }
 
-        loaded = true;
     } while(0);
 
     furi_string_free(temp_str);
 
     flipper_format_free(fff);
     furi_record_close(RECORD_STORAGE);
-
-    if(!loaded) {
-        app->ble_hid_cfg.name[0] = '\0';
-    }
 }
 
 void bt_hid_save_cfg(Hid* app) {
@@ -92,24 +89,30 @@ void bt_hid_save_cfg(Hid* app) {
     furi_record_close(RECORD_STORAGE);
 }
 
+static void hid_set_transport_status(Hid* hid, bool wireless, bool connected) {
+    if(wireless) {
+        notification_internal_message(
+            hid->notifications, connected ? &sequence_set_blue_255 : &sequence_reset_blue);
+    }
+    hid_keynote_set_connected_status(hid->hid_keynote, connected, wireless);
+    hid_keyboard_set_connected_status(hid->hid_keyboard, connected, wireless);
+    hid_numpad_set_connected_status(hid->hid_numpad, connected, wireless);
+    hid_media_set_connected_status(hid->hid_media, connected, wireless);
+    hid_music_macos_set_connected_status(hid->hid_music_macos, connected, wireless);
+    hid_movie_set_connected_status(hid->hid_movie, connected, wireless);
+    hid_mouse_set_connected_status(hid->hid_mouse, connected, wireless);
+    hid_mouse_clicker_set_connected_status(hid->hid_mouse_clicker, connected, wireless);
+    hid_mouse_jiggler_set_connected_status(hid->hid_mouse_jiggler, connected, wireless);
+    hid_mouse_jiggler_stealth_set_connected_status(
+        hid->hid_mouse_jiggler_stealth, connected, wireless);
+    hid_ptt_set_connected_status(hid->hid_ptt, connected, wireless);
+    hid_tiktok_set_connected_status(hid->hid_tiktok, connected, wireless);
+}
+
 static void bt_hid_connection_status_changed_callback(BtStatus status, void* context) {
     furi_assert(context);
     Hid* hid = context;
-    const bool connected = (status == BtStatusConnected);
-    notification_internal_message(
-        hid->notifications, connected ? &sequence_set_blue_255 : &sequence_reset_blue);
-    hid_keynote_set_connected_status(hid->hid_keynote, connected);
-    hid_keyboard_set_connected_status(hid->hid_keyboard, connected);
-    hid_numpad_set_connected_status(hid->hid_numpad, connected);
-    hid_media_set_connected_status(hid->hid_media, connected);
-    hid_music_macos_set_connected_status(hid->hid_music_macos, connected);
-    hid_movie_set_connected_status(hid->hid_movie, connected);
-    hid_mouse_set_connected_status(hid->hid_mouse, connected);
-    hid_mouse_clicker_set_connected_status(hid->hid_mouse_clicker, connected);
-    hid_mouse_jiggler_set_connected_status(hid->hid_mouse_jiggler, connected);
-    hid_mouse_jiggler_stealth_set_connected_status(hid->hid_mouse_jiggler_stealth, connected);
-    hid_ptt_set_connected_status(hid->hid_ptt, connected);
-    hid_tiktok_set_connected_status(hid->hid_tiktok, connected);
+    hid_set_transport_status(hid, true, status == BtStatusConnected);
 }
 
 static uint32_t hid_ptt_menu_view(void* context) {
@@ -119,6 +122,14 @@ static uint32_t hid_ptt_menu_view(void* context) {
 
 Hid* hid_alloc() {
     Hid* app = malloc(sizeof(Hid));
+    app->ble_hid_profile = NULL;
+    app->transport = HidTransportWired;
+    app->transport_restore = HidTransportWired;
+    app->transport_target_view = HidViewSubmenu;
+    app->usb_mode_prev = NULL;
+    app->transport_started = false;
+    app->transport_restore_pending = false;
+    app->transport_restore_deferred = false;
 
     // Gui
     app->gui = furi_record_open(RECORD_GUI);
@@ -233,9 +244,9 @@ void hid_free(Hid* app) {
     furi_assert(app);
 
     // Reset notification
-#ifdef HID_TRANSPORT_BLE
-    notification_internal_message(app->notifications, &sequence_reset_blue);
-#endif
+    if(app->transport == HidTransportWireless) {
+        notification_internal_message(app->notifications, &sequence_reset_blue);
+    }
     // Free views
     view_dispatcher_remove_view(app->view_dispatcher, HidViewSubmenu);
     submenu_free(app->submenu);
@@ -286,79 +297,102 @@ void hid_free(Hid* app) {
     free(app);
 }
 
-int32_t hid_usb_app(void* p) {
+bool hid_transport_start(Hid* app, HidTransport transport) {
+    furi_assert(app);
+    furi_check(!app->transport_started);
+
+    if(transport == HidTransportWired) {
+        app->usb_mode_prev = furi_hal_usb_get_config();
+        furi_hal_usb_unlock();
+        if(!furi_hal_usb_set_config(&usb_hid, NULL)) {
+            app->usb_mode_prev = NULL;
+            return false;
+        }
+
+        app->transport = HidTransportWired;
+        app->transport_started = true;
+        hid_set_transport_status(app, false, true);
+        FURI_LOG_D("HID", "Starting as USB transport");
+    } else {
+        bt_disconnect(app->bt);
+
+        // Wait 2nd core to update nvm storage
+        furi_delay_ms(200);
+
+        // Migrate data from old sd-card folder
+        Storage* storage = furi_record_open(RECORD_STORAGE);
+
+        storage_common_migrate(
+            storage,
+            EXT_PATH("apps/Tools/" HID_BT_KEYS_STORAGE_NAME),
+            APP_DATA_PATH(HID_BT_KEYS_STORAGE_NAME));
+
+        bt_keys_storage_set_storage_path(app->bt, APP_DATA_PATH(HID_BT_KEYS_STORAGE_NAME));
+
+        furi_record_close(RECORD_STORAGE);
+
+        bt_hid_load_cfg(app);
+
+        app->ble_hid_profile = bt_profile_start(app->bt, ble_profile_hid_ext, &app->ble_hid_cfg);
+        if(!app->ble_hid_profile) {
+            bt_keys_storage_set_default_path(app->bt);
+            bt_profile_restore_default(app->bt);
+            return false;
+        }
+
+        app->transport = HidTransportWireless;
+        app->transport_started = true;
+        hid_set_transport_status(app, true, false);
+        bt_set_status_changed_callback(app->bt, bt_hid_connection_status_changed_callback, app);
+        furi_hal_bt_start_advertising();
+        FURI_LOG_D("HID", "Starting as Bluetooth transport");
+    }
+
+    dolphin_deed(DolphinDeedPluginStart);
+    return true;
+}
+
+void hid_transport_stop(Hid* app) {
+    furi_assert(app);
+    if(!app->transport_started) return;
+
+    if(app->transport == HidTransportWireless) {
+        bt_set_status_changed_callback(app->bt, NULL, NULL);
+        bt_disconnect(app->bt);
+
+        // Wait 2nd core to update nvm storage
+        furi_delay_ms(200);
+
+        bt_keys_storage_set_default_path(app->bt);
+
+        furi_check(bt_profile_restore_default(app->bt));
+        app->ble_hid_profile = NULL;
+    } else {
+        furi_hal_usb_set_config(app->usb_mode_prev, NULL);
+        app->usb_mode_prev = NULL;
+    }
+
+    app->transport_started = false;
+}
+
+static int32_t hid_app(void* p, HidTransport initial_transport) {
     UNUSED(p);
     Hid* app = hid_alloc();
 
-    FURI_LOG_D("HID", "Starting as USB app");
-
-    FuriHalUsbInterface* usb_mode_prev = furi_hal_usb_get_config();
-    furi_hal_usb_unlock();
-    furi_check(furi_hal_usb_set_config(&usb_hid, NULL) == true);
-
-    dolphin_deed(DolphinDeedPluginStart);
-
+    furi_check(hid_transport_start(app, initial_transport));
     scene_manager_next_scene(app->scene_manager, HidSceneStart);
-
     view_dispatcher_run(app->view_dispatcher);
 
-    furi_hal_usb_set_config(usb_mode_prev, NULL);
-
+    hid_transport_stop(app);
     hid_free(app);
 
     return 0;
 }
 
+int32_t hid_usb_app(void* p) {
+    return hid_app(p, HidTransportWired);
+}
+
 int32_t hid_ble_app(void* p) {
-    UNUSED(p);
-    Hid* app = hid_alloc();
-
-    FURI_LOG_D("HID", "Starting as BLE app");
-
-    bt_disconnect(app->bt);
-
-    // Wait 2nd core to update nvm storage
-    furi_delay_ms(200);
-
-    // Migrate data from old sd-card folder
-    Storage* storage = furi_record_open(RECORD_STORAGE);
-
-    storage_common_migrate(
-        storage,
-        EXT_PATH("apps/Tools/" HID_BT_KEYS_STORAGE_NAME),
-        APP_DATA_PATH(HID_BT_KEYS_STORAGE_NAME));
-
-    bt_keys_storage_set_storage_path(app->bt, APP_DATA_PATH(HID_BT_KEYS_STORAGE_NAME));
-
-    furi_record_close(RECORD_STORAGE);
-
-    bt_hid_load_cfg(app);
-
-    app->ble_hid_profile = bt_profile_start(app->bt, ble_profile_hid_ext, &app->ble_hid_cfg);
-
-    furi_check(app->ble_hid_profile);
-
-    bt_set_status_changed_callback(app->bt, bt_hid_connection_status_changed_callback, app);
-    furi_hal_bt_start_advertising();
-
-    dolphin_deed(DolphinDeedPluginStart);
-
-    scene_manager_next_scene(app->scene_manager, HidSceneStart);
-
-    view_dispatcher_run(app->view_dispatcher);
-
-    bt_set_status_changed_callback(app->bt, NULL, NULL);
-
-    bt_disconnect(app->bt);
-
-    // Wait 2nd core to update nvm storage
-    furi_delay_ms(200);
-
-    bt_keys_storage_set_default_path(app->bt);
-
-    furi_check(bt_profile_restore_default(app->bt));
-
-    hid_free(app);
-
-    return 0;
+    return hid_app(p, HidTransportWireless);
 }

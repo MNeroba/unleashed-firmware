@@ -23,6 +23,7 @@ typedef struct {
     bool ok_pressed;
     bool back_pressed;
     bool connected;
+    bool wireless;
 } HidKeyboardModel;
 
 typedef struct {
@@ -307,8 +308,7 @@ static void hid_keyboard_draw_callback(Canvas* canvas, void* context) {
     HidKeyboardModel* model = context;
 
     // Header
-#ifdef HID_TRANSPORT_BLE
-    if(!model->connected) {
+    if(model->wireless && !model->connected) {
         canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
         canvas_set_font(canvas, FontPrimary);
         elements_multiline_text_aligned(canvas, 17, 3, AlignLeft, AlignTop, "Keyboard");
@@ -321,7 +321,6 @@ static void hid_keyboard_draw_callback(Canvas* canvas, void* context) {
             canvas, 4, 60, AlignLeft, AlignBottom, "Waiting for Connection...");
         return; // Dont render the keyboard if we are not yet connected
     }
-#endif
 
     canvas_set_font(canvas, FontKeyboard);
     // Start shifting the all keys up if on the next row (Scrolling)
@@ -494,8 +493,14 @@ View* hid_keyboard_get_view(HidKeyboard* hid_keyboard) {
     return hid_keyboard->view;
 }
 
-void hid_keyboard_set_connected_status(HidKeyboard* hid_keyboard, bool connected) {
+void hid_keyboard_set_connected_status(HidKeyboard* hid_keyboard, bool connected, bool wireless) {
     furi_assert(hid_keyboard);
     with_view_model(
-        hid_keyboard->view, HidKeyboardModel * model, { model->connected = connected; }, true);
+        hid_keyboard->view,
+        HidKeyboardModel * model,
+        {
+            model->connected = connected;
+            model->wireless = wireless;
+        },
+        true);
 }

@@ -21,6 +21,7 @@ typedef struct {
     bool down_pressed;
     bool ok_pressed;
     bool connected;
+    bool wireless;
     bool back_pressed;
 } HidMovieModel;
 
@@ -42,13 +43,13 @@ static void hid_movie_draw_callback(Canvas* canvas, void* context) {
     HidMovieModel* model = context;
 
     // Header
-#ifdef HID_TRANSPORT_BLE
-    if(model->connected) {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
-    } else {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+    if(model->wireless) {
+        if(model->connected) {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
+        } else {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+        }
     }
-#endif
 
     canvas_set_font(canvas, FontPrimary);
     elements_multiline_text_aligned(canvas, 17, 3, AlignLeft, AlignTop, "Movie");
@@ -224,8 +225,14 @@ View* hid_movie_get_view(HidMovie* hid_movie) {
     return hid_movie->view;
 }
 
-void hid_movie_set_connected_status(HidMovie* hid_movie, bool connected) {
+void hid_movie_set_connected_status(HidMovie* hid_movie, bool connected, bool wireless) {
     furi_assert(hid_movie);
     with_view_model(
-        hid_movie->view, HidMovieModel * model, { model->connected = connected; }, true);
+        hid_movie->view,
+        HidMovieModel * model,
+        {
+            model->connected = connected;
+            model->wireless = wireless;
+        },
+        true);
 }

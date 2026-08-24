@@ -22,6 +22,7 @@ typedef struct {
     bool ok_pressed;
     bool back_pressed;
     bool connected;
+    bool wireless;
     char key_string[5];
 } HidNumpadModel;
 
@@ -134,29 +135,26 @@ static void hid_numpad_draw_callback(Canvas* canvas, void* context) {
 
     // Header
     canvas_set_font(canvas, FontPrimary);
-#ifdef HID_TRANSPORT_BLE
-    if(model->connected) {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
+    if(model->wireless) {
+        if(model->connected) {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
+        } else {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+            elements_multiline_text_aligned(
+                canvas, 7, 60, AlignLeft, AlignBottom, "Waiting for\nConnection...");
+        }
+        elements_multiline_text_aligned(canvas, 20, 3, AlignLeft, AlignTop, "Numpad");
     } else {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
-        elements_multiline_text_aligned(
-            canvas, 7, 60, AlignLeft, AlignBottom, "Waiting for\nConnection...");
+        elements_multiline_text_aligned(canvas, 12, 3, AlignLeft, AlignTop, "Numpad");
     }
-    elements_multiline_text_aligned(canvas, 20, 3, AlignLeft, AlignTop, "Numpad");
-
-#else
-    elements_multiline_text_aligned(canvas, 12, 3, AlignLeft, AlignTop, "Numpad");
-#endif
 
     canvas_draw_icon(canvas, 3, 18, &I_Pin_back_arrow_10x8);
     canvas_set_font(canvas, FontSecondary);
     elements_multiline_text_aligned(canvas, 15, 19, AlignLeft, AlignTop, "Hold to exit");
 
-#ifdef HID_TRANSPORT_BLE
-    if(!model->connected) {
+    if(model->wireless && !model->connected) {
         return;
     }
-#endif
 
     canvas_set_font(canvas, FontKeyboard);
     uint8_t initY = 0; // = model->y == 0 ? 0 : 1;
@@ -305,8 +303,14 @@ View* hid_numpad_get_view(HidNumpad* hid_numpad) {
     return hid_numpad->view;
 }
 
-void hid_numpad_set_connected_status(HidNumpad* hid_numpad, bool connected) {
+void hid_numpad_set_connected_status(HidNumpad* hid_numpad, bool connected, bool wireless) {
     furi_assert(hid_numpad);
     with_view_model(
-        hid_numpad->view, HidNumpadModel * model, { model->connected = connected; }, true);
+        hid_numpad->view,
+        HidNumpadModel * model,
+        {
+            model->connected = connected;
+            model->wireless = wireless;
+        },
+        true);
 }

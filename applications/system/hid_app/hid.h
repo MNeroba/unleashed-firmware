@@ -39,9 +39,25 @@
 
 typedef struct Hid Hid;
 
+typedef enum {
+    HidTransportWired,
+    HidTransportWireless,
+} HidTransport;
+
+typedef enum {
+    HidCustomEventUnpair = 100,
+} HidCustomEvent;
+
 struct Hid {
     FuriHalBleProfileBase* ble_hid_profile;
     BleProfileHidExtParams ble_hid_cfg;
+    HidTransport transport;
+    HidTransport transport_restore;
+    uint32_t transport_target_view;
+    FuriHalUsbInterface* usb_mode_prev;
+    bool transport_started;
+    bool transport_restore_pending;
+    bool transport_restore_deferred;
     Bt* bt;
     Gui* gui;
     NotificationApp* notifications;
@@ -69,6 +85,9 @@ struct Hid {
 void bt_hid_remove_pairing(Hid* app);
 void bt_hid_save_cfg(Hid* app);
 
+bool hid_transport_start(Hid* app, HidTransport transport);
+void hid_transport_stop(Hid* app);
+
 void hid_hal_keyboard_press(Hid* instance, uint16_t event);
 void hid_hal_keyboard_release(Hid* instance, uint16_t event);
 void hid_hal_keyboard_release_all(Hid* instance);
@@ -82,3 +101,27 @@ void hid_hal_mouse_scroll(Hid* instance, int8_t delta);
 void hid_hal_mouse_press(Hid* instance, uint16_t event);
 void hid_hal_mouse_release(Hid* instance, uint16_t event);
 void hid_hal_mouse_release_all(Hid* instance);
+
+void hid_hal_usb_keyboard_press(Hid* instance, uint16_t event);
+void hid_hal_usb_keyboard_release(Hid* instance, uint16_t event);
+void hid_hal_usb_keyboard_release_all(Hid* instance);
+void hid_hal_usb_consumer_key_press(Hid* instance, uint16_t event);
+void hid_hal_usb_consumer_key_release(Hid* instance, uint16_t event);
+void hid_hal_usb_consumer_key_release_all(Hid* instance);
+void hid_hal_usb_mouse_move(Hid* instance, int8_t dx, int8_t dy);
+void hid_hal_usb_mouse_scroll(Hid* instance, int8_t delta);
+void hid_hal_usb_mouse_press(Hid* instance, uint16_t event);
+void hid_hal_usb_mouse_release(Hid* instance, uint16_t event);
+void hid_hal_usb_mouse_release_all(Hid* instance);
+
+void hid_hal_ble_keyboard_press(Hid* instance, uint16_t event);
+void hid_hal_ble_keyboard_release(Hid* instance, uint16_t event);
+void hid_hal_ble_keyboard_release_all(Hid* instance);
+void hid_hal_ble_consumer_key_press(Hid* instance, uint16_t event);
+void hid_hal_ble_consumer_key_release(Hid* instance, uint16_t event);
+void hid_hal_ble_consumer_key_release_all(Hid* instance);
+void hid_hal_ble_mouse_move(Hid* instance, int8_t dx, int8_t dy);
+void hid_hal_ble_mouse_scroll(Hid* instance, int8_t delta);
+void hid_hal_ble_mouse_press(Hid* instance, uint16_t event);
+void hid_hal_ble_mouse_release(Hid* instance, uint16_t event);
+void hid_hal_ble_mouse_release_all(Hid* instance);

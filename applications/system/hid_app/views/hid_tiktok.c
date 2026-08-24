@@ -18,6 +18,7 @@ typedef struct {
     bool down_pressed;
     bool ok_pressed;
     bool connected;
+    bool wireless;
     bool is_cursor_set;
     bool back_mouse_pressed;
 } HidTikTokModel;
@@ -27,13 +28,13 @@ static void hid_tiktok_draw_callback(Canvas* canvas, void* context) {
     HidTikTokModel* model = context;
 
     // Header
-#ifdef HID_TRANSPORT_BLE
-    if(model->connected) {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
-    } else {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+    if(model->wireless) {
+        if(model->connected) {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
+        } else {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+        }
     }
-#endif
 
     canvas_set_font(canvas, FontPrimary);
     elements_multiline_text_aligned(canvas, 17, 3, AlignLeft, AlignTop, "TikTok /");
@@ -251,13 +252,14 @@ View* hid_tiktok_get_view(HidTikTok* hid_tiktok) {
     return hid_tiktok->view;
 }
 
-void hid_tiktok_set_connected_status(HidTikTok* hid_tiktok, bool connected) {
+void hid_tiktok_set_connected_status(HidTikTok* hid_tiktok, bool connected, bool wireless) {
     furi_assert(hid_tiktok);
     with_view_model(
         hid_tiktok->view,
         HidTikTokModel * model,
         {
             model->connected = connected;
+            model->wireless = wireless;
             model->is_cursor_set = false;
         },
         true);

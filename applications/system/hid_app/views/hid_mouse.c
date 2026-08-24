@@ -20,6 +20,7 @@ typedef struct {
     bool left_mouse_held;
     bool right_mouse_pressed;
     bool connected;
+    bool wireless;
     uint8_t acceleration;
 } HidMouseModel;
 
@@ -28,13 +29,13 @@ static void hid_mouse_draw_callback(Canvas* canvas, void* context) {
     HidMouseModel* model = context;
 
     // Header
-#ifdef HID_TRANSPORT_BLE
-    if(model->connected) {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
-    } else {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+    if(model->wireless) {
+        if(model->connected) {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
+        } else {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+        }
     }
-#endif
 
     canvas_set_font(canvas, FontPrimary);
     elements_multiline_text_aligned(canvas, 17, 3, AlignLeft, AlignTop, "Mouse");
@@ -240,8 +241,14 @@ View* hid_mouse_get_view(HidMouse* hid_mouse) {
     return hid_mouse->view;
 }
 
-void hid_mouse_set_connected_status(HidMouse* hid_mouse, bool connected) {
+void hid_mouse_set_connected_status(HidMouse* hid_mouse, bool connected, bool wireless) {
     furi_assert(hid_mouse);
     with_view_model(
-        hid_mouse->view, HidMouseModel * model, { model->connected = connected; }, true);
+        hid_mouse->view,
+        HidMouseModel * model,
+        {
+            model->connected = connected;
+            model->wireless = wireless;
+        },
+        true);
 }

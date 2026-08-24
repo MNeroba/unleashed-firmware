@@ -11,4 +11,7 @@ void hid_music_macos_free(HidMusicMacos* hid_music_macos);
 
 View* hid_music_macos_get_view(HidMusicMacos* hid_music_macos);
 
-void hid_music_macos_set_connected_status(HidMusicMacos* hid_music_macos, bool connected);
+void hid_music_macos_set_connected_status(
+    HidMusicMacos* hid_music_macos,
+    bool connected,
+    bool wireless);

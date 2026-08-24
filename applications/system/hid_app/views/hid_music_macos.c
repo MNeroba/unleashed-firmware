@@ -21,6 +21,7 @@ typedef struct {
     bool down_pressed;
     bool ok_pressed;
     bool connected;
+    bool wireless;
     bool back_pressed;
 } HidMusicMacosModel;
 
@@ -42,13 +43,13 @@ static void hid_music_macos_draw_callback(Canvas* canvas, void* context) {
     HidMusicMacosModel* model = context;
 
     // Header
-#ifdef HID_TRANSPORT_BLE
-    if(model->connected) {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
-    } else {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+    if(model->wireless) {
+        if(model->connected) {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
+        } else {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+        }
     }
-#endif
 
     canvas_set_font(canvas, FontPrimary);
     elements_multiline_text_aligned(canvas, 17, 3, AlignLeft, AlignTop, "Music");
@@ -228,8 +229,17 @@ View* hid_music_macos_get_view(HidMusicMacos* hid_music_macos) {
     return hid_music_macos->view;
 }
 
-void hid_music_macos_set_connected_status(HidMusicMacos* hid_music_macos, bool connected) {
+void hid_music_macos_set_connected_status(
+    HidMusicMacos* hid_music_macos,
+    bool connected,
+    bool wireless) {
     furi_assert(hid_music_macos);
     with_view_model(
-        hid_music_macos->view, HidMusicMacosModel * model, { model->connected = connected; }, true);
+        hid_music_macos->view,
+        HidMusicMacosModel * model,
+        {
+            model->connected = connected;
+            model->wireless = wireless;
+        },
+        true);
 }

@@ -19,6 +19,7 @@ typedef struct {
     bool ok_pressed;
     bool back_pressed;
     bool connected;
+    bool wireless;
 } HidKeynoteModel;
 
 static void hid_keynote_draw_arrow(Canvas* canvas, uint8_t x, uint8_t y, CanvasDirection dir) {
@@ -39,13 +40,13 @@ static void hid_keynote_draw_callback(Canvas* canvas, void* context) {
     HidKeynoteModel* model = context;
 
     // Header
-#ifdef HID_TRANSPORT_BLE
-    if(model->connected) {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
-    } else {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+    if(model->wireless) {
+        if(model->connected) {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
+        } else {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+        }
     }
-#endif
 
     canvas_set_font(canvas, FontPrimary);
     elements_multiline_text_aligned(canvas, 17, 3, AlignLeft, AlignTop, "Keynote");
@@ -115,18 +116,18 @@ static void hid_keynote_draw_vertical_callback(Canvas* canvas, void* context) {
     HidKeynoteModel* model = context;
 
     // Header
-#ifdef HID_TRANSPORT_BLE
-    if(model->connected) {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
+    if(model->wireless) {
+        if(model->connected) {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
+        } else {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+        }
+        canvas_set_font(canvas, FontPrimary);
+        elements_multiline_text_aligned(canvas, 20, 3, AlignLeft, AlignTop, "Keynote");
     } else {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+        canvas_set_font(canvas, FontPrimary);
+        elements_multiline_text_aligned(canvas, 12, 3, AlignLeft, AlignTop, "Keynote");
     }
-    canvas_set_font(canvas, FontPrimary);
-    elements_multiline_text_aligned(canvas, 20, 3, AlignLeft, AlignTop, "Keynote");
-#else
-    canvas_set_font(canvas, FontPrimary);
-    elements_multiline_text_aligned(canvas, 12, 3, AlignLeft, AlignTop, "Keynote");
-#endif
 
     canvas_draw_icon(canvas, 2, 18, &I_Pin_back_arrow_10x8);
     canvas_set_font(canvas, FontSecondary);
@@ -287,10 +288,16 @@ View* hid_keynote_get_view(HidKeynote* hid_keynote) {
     return hid_keynote->view;
 }
 
-void hid_keynote_set_connected_status(HidKeynote* hid_keynote, bool connected) {
+void hid_keynote_set_connected_status(HidKeynote* hid_keynote, bool connected, bool wireless) {
     furi_assert(hid_keynote);
     with_view_model(
-        hid_keynote->view, HidKeynoteModel * model, { model->connected = connected; }, true);
+        hid_keynote->view,
+        HidKeynoteModel * model,
+        {
+            model->connected = connected;
+            model->wireless = wireless;
+        },
+        true);
 }
 
 void hid_keynote_set_orientation(HidKeynote* hid_keynote, bool vertical) {

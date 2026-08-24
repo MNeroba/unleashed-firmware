@@ -81,20 +81,20 @@ void hid_scene_start_on_enter(void* context) {
         HidSubmenuIndexPushToTalk,
         hid_scene_start_submenu_callback,
         app);
-#ifdef HID_TRANSPORT_BLE
-    submenu_add_item(
-        app->submenu,
-        "Bluetooth Remote Name",
-        HidSubmenuIndexRename,
-        hid_scene_start_submenu_callback,
-        app);
-    submenu_add_item(
-        app->submenu,
-        "Bluetooth Unpairing",
-        HidSubmenuIndexRemovePairing,
-        hid_scene_start_submenu_callback,
-        app);
-#endif
+    if(app->transport == HidTransportWireless) {
+        submenu_add_item(
+            app->submenu,
+            "Bluetooth Remote Name",
+            HidSubmenuIndexRename,
+            hid_scene_start_submenu_callback,
+            app);
+        submenu_add_item(
+            app->submenu,
+            "Bluetooth Unpairing",
+            HidSubmenuIndexRemovePairing,
+            hid_scene_start_submenu_callback,
+            app);
+    }
 
     submenu_set_selected_item(
         app->submenu, scene_manager_get_scene_state(app->scene_manager, HidSceneStart));
@@ -110,6 +110,12 @@ bool hid_scene_start_on_event(void* context, SceneManagerEvent event) {
             scene_manager_next_scene(app->scene_manager, HidSceneUnpair);
         } else if(event.event == HidSubmenuIndexRename) {
             scene_manager_next_scene(app->scene_manager, HidSceneRename);
+        } else if(event.event == HidSubmenuIndexMouseJiggler) {
+            app->transport_target_view = HidViewMouseJiggler;
+            scene_manager_next_scene(app->scene_manager, HidSceneTransport);
+        } else if(event.event == HidSubmenuIndexMouseJigglerStealth) {
+            app->transport_target_view = HidViewMouseJigglerStealth;
+            scene_manager_next_scene(app->scene_manager, HidSceneTransport);
         } else {
             HidView view_id;
 
@@ -145,12 +151,6 @@ bool hid_scene_start_on_event(void* context, SceneManagerEvent event) {
                 break;
             case HidSubmenuIndexMouseClicker:
                 view_id = HidViewMouseClicker;
-                break;
-            case HidSubmenuIndexMouseJiggler:
-                view_id = HidViewMouseJiggler;
-                break;
-            case HidSubmenuIndexMouseJigglerStealth:
-                view_id = HidViewMouseJigglerStealth;
                 break;
             case HidSubmenuIndexPushToTalk:
                 view_id = HidViewPushToTalkMenu;

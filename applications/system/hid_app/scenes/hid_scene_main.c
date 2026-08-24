@@ -10,13 +10,28 @@ void hid_scene_main_on_enter(void* context) {
 bool hid_scene_main_on_event(void* context, SceneManagerEvent event) {
     Hid* app = context;
     bool consumed = false;
-    UNUSED(app);
-    UNUSED(event);
+
+    if(event.type == SceneManagerEventTypeCustom && event.event == HidCustomEventUnpair) {
+        app->transport_restore_deferred = true;
+        scene_manager_next_scene(app->scene_manager, HidSceneUnpair);
+        consumed = true;
+    }
 
     return consumed;
 }
 
 void hid_scene_main_on_exit(void* context) {
     Hid* app = context;
-    UNUSED(app);
+
+    if(app->transport_restore_pending && !app->transport_restore_deferred) {
+        HidTransport transport_restore = app->transport_restore;
+        app->transport_restore_pending = false;
+
+        if(app->transport != transport_restore) {
+            hid_transport_stop(app);
+            if(!hid_transport_start(app, transport_restore)) {
+                FURI_LOG_E("HID", "Failed to restore the HID transport");
+            }
+        }
+    }
 }

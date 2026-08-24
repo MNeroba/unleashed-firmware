@@ -18,6 +18,7 @@ struct HidMouseJigglerStealth {
 
 typedef struct {
     bool connected;
+    bool wireless;
     bool running;
     int min_interval; // Minimum interval for random range
     int max_interval; // Maximum interval for random range
@@ -38,21 +39,23 @@ static void hid_mouse_jiggler_stealth_draw_callback(Canvas* canvas, void* contex
     furi_assert(context);
     HidMouseJigglerStealthModel* model = context;
 
-// Header
-#ifdef HID_TRANSPORT_BLE
-    if(model->connected) {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
-    } else {
-        canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+    // Header
+    if(model->wireless) {
+        if(model->connected) {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_connected_15x15);
+        } else {
+            canvas_draw_icon(canvas, 0, 0, &I_Ble_disconnected_15x15);
+        }
     }
-#endif
 
     canvas_set_font(canvas, FontPrimary);
-#ifdef HID_TRANSPORT_BLE
-    elements_multiline_text_aligned(canvas, 17, 4, AlignLeft, AlignTop, "Mouse Jiggler Stealth");
-#else
-    elements_multiline_text_aligned(canvas, 10, 2, AlignLeft, AlignTop, "Mouse Jiggler Stealth");
-#endif
+    if(model->wireless) {
+        elements_multiline_text_aligned(
+            canvas, 17, 4, AlignLeft, AlignTop, "Mouse Jiggler Stealth");
+    } else {
+        elements_multiline_text_aligned(
+            canvas, 10, 2, AlignLeft, AlignTop, "Mouse Jiggler Stealth");
+    }
 
     // Both rows hint only presses that do something - keep bounds in sync with the input handler
     canvas_set_font(canvas, FontSecondary);
@@ -80,15 +83,11 @@ static void hid_mouse_jiggler_stealth_draw_callback(Canvas* canvas, void* contex
 
     // "Press Start to jiggle"
     canvas_set_font(canvas, FontPrimary);
-#ifdef HID_TRANSPORT_BLE
-    if(model->running && !model->connected) {
+    if(model->wireless && model->running && !model->connected) {
         elements_multiline_text(canvas, AlignLeft, 50, "Waiting for\nBluetooth");
     } else {
         elements_multiline_text(canvas, AlignLeft, 50, "Press Start\nto jiggle");
     }
-#else
-    elements_multiline_text(canvas, AlignLeft, 50, "Press Start\nto jiggle");
-#endif
 
     // Ok
     canvas_draw_icon(canvas, 63, 30, &I_Space_65x18);
@@ -124,9 +123,7 @@ static void hid_mouse_jiggler_stealth_timer_callback(void* context) {
         {
             if(model->running) {
                 running = true;
-#ifdef HID_TRANSPORT_BLE
-                connected = model->connected;
-#endif
+                connected = !model->wireless || model->connected;
 
                 // Keep the next random interval in kernel ticks for the Furi timer.
                 int randomIntervalMinutes =
@@ -166,6 +163,13 @@ static void hid_mouse_jiggler_stealth_exit_callback(void* context) {
 static bool hid_mouse_jiggler_stealth_input_callback(InputEvent* event, void* context) {
     furi_assert(context);
     HidMouseJigglerStealth* hid_mouse_jiggler = context;
+
+    if(event->type == InputTypeLong && event->key == InputKeyBack &&
+       hid_mouse_jiggler->hid->transport == HidTransportWireless) {
+        view_dispatcher_send_custom_event(
+            hid_mouse_jiggler->hid->view_dispatcher, HidCustomEventUnpair);
+        return true;
+    }
 
     bool consumed = false;
     bool timer_start = false;
@@ -258,6 +262,7 @@ HidMouseJigglerStealth* hid_mouse_jiggler_stealth_alloc(Hid* hid) {
         {
             // Default random range, in minutes
             model->connected = false;
+            model->wireless = false;
             model->running = false;
             model->min_interval = 1;
             model->max_interval = 4;
@@ -285,11 +290,15 @@ View* hid_mouse_jiggler_stealth_get_view(HidMouseJigglerStealth* hid_mouse_jiggl
 
 void hid_mouse_jiggler_stealth_set_connected_status(
     HidMouseJigglerStealth* hid_mouse_jiggler,
-    bool connected) {
+    bool connected,
+    bool wireless) {
     furi_assert(hid_mouse_jiggler);
     with_view_model(
         hid_mouse_jiggler->view,
         HidMouseJigglerStealthModel * model,
-        { model->connected = connected; },
+        {
+            model->connected = connected;
+            model->wireless = wireless;
+        },
         true);
 }
